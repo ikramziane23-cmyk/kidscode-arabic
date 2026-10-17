@@ -1,10 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, useEffect, useCallback } from "react";
-import {
-  ArrowRight, Eraser, Trash2, Pencil, ImagePlus, BookOpen, Video, Circle,
-  Volume2, VolumeX, Moon, Sun, Undo2, Redo2, ZoomIn, ZoomOut, Maximize,
-  Menu, Search, X, Camera, CameraOff,
-} from "lucide-react";
+import { ArrowRight, Eraser, Trash2, Pencil, ImagePlus, BookOpen, Video, Circle, Moon, Sun, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Menu, Search, X, Camera, CameraOff, MousePointer2, Highlighter, Type, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { SURAHS, TOTAL_PAGES, surahForPage, drawMushafPage } from "@/lib/mushaf-data";
 
 export const Route = createFileRoute("/board")({
@@ -22,21 +19,14 @@ export const Route = createFileRoute("/board")({
 });
 
 const colors = [
-  { name: "أحمر", value: "#ef4444" },
-  { name: "برتقالي", value: "#f97316" },
-  { name: "أصفر", value: "#eab308" },
-  { name: "أخضر", value: "#22c55e" },
-  { name: "أزرق", value: "#3b82f6" },
-  { name: "بنفسجي", value: "#a855f7" },
-  { name: "وردي", value: "#ec4899" },
-  { name: "بني", value: "#92400e" },
+  { name: "أحمر", token: "kid-red" }, { name: "برتقالي", token: "kid-orange" },
+  { name: "أصفر", token: "kid-yellow" }, { name: "أخضر", token: "kid-green" },
+  { name: "أزرق", token: "kid-blue" }, { name: "بنفسجي", token: "kid-purple" },
+  { name: "وردي", token: "board-pink" }, { name: "أسود", token: "board-ink" },
 ];
-
-const W = 1200;
-const H = 750;
-const MIN_ZOOM = 0.4;
-const MAX_ZOOM = 3;
-
+type Tool = "select" | "pen" | "eraser" | "highlighter" | "text";
+type Point = { x: number; y: number };
+type Item = { kind: "stroke"; points: Point[]; color: string; size: number; tool: Tool } | { kind: "image"; image: HTMLImageElement | HTMLCanvasElement; x: number; y: number; w: number; h: number } | { kind: "text"; text: string; color: string; size: number; x: number; y: number };
 function Board() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -44,351 +34,187 @@ function Board() {
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-
-  const [color, setColor] = useState(colors[4]!.value);
-  const [size, setSize] = useState(8);
-  const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const items = useRef<Item[]>([]);
+  const undoStack = useRef<Item[][]>([]);
+  const redoStack = useRef<Item[][]>([]);
+  const drag = useRef<{ last: Point; item: number | null } | null>(null);
+  const activeStroke = useRef<Item | null>(null);
+  const [tick, setTick] = useState(0);
+  const [color, setColor] = useState("kid-blue");
+  const [size, setSize] = useState(6);
+  const [tool, setTool] = useState<Tool>("pen");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
   const [dark, setDark] = useState(false);
-  const [muted, setMuted] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [error, setError] = useState("");
   const [mushafOpen, setMushafOpen] = useState(false);
   const [indexOpen, setIndexOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [search, setSearch] = useState("");
-
-  const drawing = useRef(false);
-  const last = useRef<{ x: number; y: number } | null>(null);
-  const undoStack = useRef<string[]>([]);
-  const redoStack = useRef<string[]>([]);
-  const [historyTick, setHistoryTick] = useState(0);
-
-  const bg = dark ? "#1e293b" : "#fffdf5";
-
-  const paintBackground = useCallback(() => {
+  const [textEntry, setTextEntry] = useState<{ point: Point; value: string } | null>(null);
+  const clone = () => items.current.map(i => i.kind === "stroke" ? { ...i, points: [...i.points] } : { ...i });
+  const snapshot = () => { undoStack.current.push(clone()); if (undoStack.current.length > 40) undoStack.current.shift(); redoStack.current = []; };
+  const refresh = () => setTick(t => t + 1);
+  const render = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // notebook lines
-    ctx.strokeStyle = dark ? "rgba(148,163,184,0.25)" : "rgba(59,130,246,0.18)";
-    ctx.lineWidth = 1;
-    for (let y = 60; y < canvas.height; y += 44) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
+    const w = window.innerWidth, h = window.innerHeight, dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    ctx.scale(dpr, dpr);
+    const css = getComputedStyle(canvas);
+    const token = (name: string) => css.getPropertyValue(`--color-${name}`).trim();
+    ctx.fillStyle = token(dark ? "board-paper-dark" : "board-paper"); ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = token(dark ? "board-line-dark" : "board-line"); ctx.lineWidth = 1;
+    const spacing = 36 * zoom;
+    for (let y = ((pan.y % spacing) + spacing) % spacing; y < h; y += spacing) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    const layer = document.createElement("canvas"); layer.width = canvas.width; layer.height = canvas.height;
+    const c = layer.getContext("2d"); if (!c) return;
+    c.scale(dpr, dpr); c.translate(pan.x, pan.y); c.scale(zoom, zoom);
+    for (const item of items.current) {
+      c.save();
+      if (item.kind === "image") c.drawImage(item.image, item.x, item.y, item.w, item.h);
+      else if (item.kind === "text") { c.fillStyle = token(item.color); c.font = `${item.size}px Cairo, sans-serif`; c.textAlign = "right"; c.fillText(item.text, item.x, item.y); }
+      else {
+        const first = item.points[0]; if (!first) { c.restore(); continue; }
+        c.globalCompositeOperation = item.tool === "eraser" ? "destination-out" : "source-over";
+        c.globalAlpha = item.tool === "highlighter" ? 0.28 : 1;
+        c.strokeStyle = token(item.color); c.lineWidth = item.size; c.lineCap = "round"; c.lineJoin = "round";
+        c.beginPath(); c.moveTo(first.x, first.y);
+        if (item.points.length === 1) c.lineTo(first.x + 0.01, first.y);
+        for (const p of item.points.slice(1)) c.lineTo(p.x, p.y);
+        c.stroke();
+      }
+      c.restore();
     }
-    // margin line
-    ctx.strokeStyle = "rgba(239,68,68,0.35)";
-    ctx.beginPath();
-    ctx.moveTo(canvas.width - 70, 0);
-    ctx.lineTo(canvas.width - 70, canvas.height);
-    ctx.stroke();
-  }, [bg, dark]);
-
-  useEffect(() => { paintBackground(); }, [paintBackground]);
-
-  const snapshot = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    undoStack.current.push(canvas.toDataURL());
-    if (undoStack.current.length > 40) undoStack.current.shift();
-    redoStack.current = [];
-    setHistoryTick((t) => t + 1);
-  };
-
-  const restore = (dataUrl: string) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const img = new Image();
-    img.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-    };
-    img.src = dataUrl;
-  };
-
-  const undo = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || undoStack.current.length === 0) return;
-    redoStack.current.push(canvas.toDataURL());
-    restore(undoStack.current.pop()!);
-    setHistoryTick((t) => t + 1);
-  };
-
-  const redo = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || redoStack.current.length === 0) return;
-    undoStack.current.push(canvas.toDataURL());
-    restore(redoStack.current.pop()!);
-    setHistoryTick((t) => t + 1);
-  };
-
-  const pos = (e: React.PointerEvent) => {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((e.clientX - rect.left) / rect.width) * canvas.width,
-      y: ((e.clientY - rect.top) / rect.height) * canvas.height,
-    };
-  };
-
-  const start = (e: React.PointerEvent) => {
+    ctx.drawImage(layer, 0, 0, w, h);
+  }, [dark, zoom, pan]);
+  useEffect(() => { render(); window.addEventListener("resize", render); return () => window.removeEventListener("resize", render); }, [render, tick]);
+  useEffect(() => { if (videoRef.current && streamRef.current) videoRef.current.srcObject = streamRef.current; }, [camOn]);
+  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()); recorderRef.current?.stream.getTracks().forEach(t => t.stop()); }, []);
+  const pos = (e: React.PointerEvent): Point => ({ x: (e.clientX - pan.x) / zoom, y: (e.clientY - pan.y) / zoom });
+  const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const p = pos(e); setPaletteOpen(false);
+    if (tool === "text") { setTextEntry({ point: p, value: "" }); return; }
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (tool === "select") {
+      const index = items.current.findLastIndex(i => i.kind === "image" ? p.x >= i.x && p.x <= i.x + i.w && p.y >= i.y && p.y <= i.y + i.h : i.kind === "text" ? p.x >= i.x - i.text.length * i.size && p.x <= i.x && Math.abs(p.y - i.y) <= i.size : false);
+      if (index >= 0) snapshot();
+      drag.current = { last: { x: e.clientX, y: e.clientY }, item: index >= 0 ? index : null }; return;
+    }
     snapshot();
-    drawing.current = true;
-    last.current = pos(e);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const stroke: Item = { kind: "stroke", points: [p], color, size: tool === "eraser" ? size * 4 : tool === "highlighter" ? size * 4 : size, tool };
+    items.current.push(stroke); activeStroke.current = stroke; refresh();
   };
-
   const move = (e: React.PointerEvent) => {
-    if (!drawing.current || !last.current) return;
-    const ctx = canvasRef.current!.getContext("2d")!;
-    const p = pos(e);
-    ctx.strokeStyle = tool === "eraser" ? bg : color;
-    ctx.lineWidth = tool === "eraser" ? size * 3 : size;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(last.current.x, last.current.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    last.current = p;
+    const stroke = activeStroke.current;
+    if (stroke?.kind === "stroke") { stroke.points.push(pos(e)); refresh(); }
+    if (drag.current) {
+      const dx = e.clientX - drag.current.last.x, dy = e.clientY - drag.current.last.y;
+      const item = drag.current.item === null ? null : items.current[drag.current.item];
+      if (item && item.kind !== "stroke") { item.x += dx / zoom; item.y += dy / zoom; refresh(); }
+      else setPan(p => ({ x: p.x + dx, y: p.y + dy }));
+      drag.current.last = { x: e.clientX, y: e.clientY };
+    }
   };
-
-  const stop = () => { drawing.current = false; last.current = null; };
-
-  const clear = () => {
-    snapshot();
-    paintBackground();
+  const stop = () => { activeStroke.current = null; drag.current = null; };
+  const clear = () => { snapshot(); items.current = []; refresh(); };
+  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(clone()); items.current = previous; refresh(); };
+  const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(clone()); items.current = next; refresh(); };
+  const addImage = (image: HTMLImageElement | HTMLCanvasElement) => {
+    snapshot(); const scale = Math.min(window.innerWidth * 0.7 / image.width, window.innerHeight * 0.65 / image.height, 1) / zoom;
+    const w = image.width * scale, h = image.height * scale;
+    items.current.push({ kind: "image", image, w, h, x: (window.innerWidth / 2 - pan.x) / zoom - w / 2, y: (window.innerHeight / 2 - pan.y) / zoom - h / 2 }); refresh();
   };
-
   const insertImage = (file: File) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      snapshot();
-      const scale = Math.min((canvas.width * 0.7) / img.width, (canvas.height * 0.7) / img.height, 1);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { addImage(img); URL.revokeObjectURL(url); };
+    img.onerror = () => { URL.revokeObjectURL(url); setError("تعذر فتح الصورة"); }; img.src = url;
   };
-
   const dropMushafOnBoard = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    snapshot();
-    const off = document.createElement("canvas");
-    off.width = 620;
-    off.height = 880;
-    drawMushafPage(off.getContext("2d")!, off.width, off.height, page);
-    const scale = Math.min((canvas.height * 0.9) / off.height, 1);
-    const w = off.width * scale;
-    const h = off.height * scale;
-    ctx.drawImage(off, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-    setMushafOpen(false);
+    const off = document.createElement("canvas"); off.width = 620; off.height = 880;
+    const ctx = off.getContext("2d"); if (!ctx) return;
+    drawMushafPage(ctx, off.width, off.height, page); addImage(off); setMushafOpen(false);
   };
-
   const toggleCamera = async () => {
-    if (camOn) {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      setCamOn(false);
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setCamOn(true);
-    } catch {
-      setCamOn(false);
-    }
+    if (camOn) { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null; setCamOn(false); return; }
+    try { streamRef.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); setCamOn(true); }
+    catch { setError("تعذر فتح الكاميرا، يرجى السماح بالوصول إليها"); }
   };
-
   const toggleRecord = () => {
-    if (recording) {
-      recorderRef.current?.stop();
-      return;
-    }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const stream = canvas.captureStream(15);
-    const rec = new MediaRecorder(stream, { mimeType: "video/webm" });
-    chunksRef.current = [];
-    rec.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
-    rec.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "video/webm" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "درس-السبورة.webm";
-      a.click();
-      URL.revokeObjectURL(a.href);
-      setRecording(false);
-    };
-    recorderRef.current = rec;
-    rec.start();
-    setRecording(true);
+    if (recording) { recorderRef.current?.stop(); return; }
+    const canvas = canvasRef.current; if (!canvas) return;
+    try {
+      const stream = canvas.captureStream(15);
+      const mimeType = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t));
+      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined); chunksRef.current = [];
+      rec.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
+      rec.onstop = () => { const url = URL.createObjectURL(new Blob(chunksRef.current, { type: rec.mimeType })); const a = document.createElement("a"); a.href = url; a.download = rec.mimeType.includes("mp4") ? "درس-السبورة.mp4" : "درس-السبورة.webm"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); stream.getTracks().forEach(t => t.stop()); setRecording(false); };
+      recorderRef.current = rec; rec.start(); setRecording(true);
+    } catch { setError("التسجيل غير متاح في هذا المتصفح"); }
   };
-
-  useEffect(() => () => { streamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
-
-  const goToPage = () => {
-    const p = Math.min(TOTAL_PAGES, Math.max(1, Number(pageInput) || 1));
-    setPage(p);
-    setPageInput(String(p));
+  const goToPage = () => { const p = Math.min(TOTAL_PAGES, Math.max(1, Number(pageInput) || 1)); setPage(p); setPageInput(String(p)); };
+  const zoomBy = (factor: number) => {
+    const next = Math.min(3, Math.max(0.4, +(zoom * factor).toFixed(2)));
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    setPan(p => ({ x: cx - (cx - p.x) * next / zoom, y: cy - (cy - p.y) * next / zoom })); setZoom(next);
   };
-
-  const zoomBy = (f: number) => setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +(z * f).toFixed(2))));
-
-  const filteredSurahs = SURAHS.filter((s) => s.name.includes(search.trim()));
-
-  const iconBtn = "flex h-10 w-10 items-center justify-center rounded-full bg-card text-foreground shadow transition-transform hover:scale-110 active:scale-95 border border-border";
-
+  const filteredSurahs = SURAHS.filter(s => s.name.includes(search.trim()) || String(s.page) === search.trim());
+  const iconBtn = "board-icon";
+  const commitText = () => { if (textEntry?.value.trim()) { snapshot(); items.current.push({ kind: "text", text: textEntry.value, color, size: Math.max(24, size * 4), ...textEntry.point }); refresh(); } setTextEntry(null); };
   return (
-    <div dir="rtl" className={`${dark ? "dark" : ""} min-h-screen bg-background font-body text-foreground`}>
-      {/* notebook lined page background */}
-      <div
-        className="fixed inset-0 -z-10"
-        style={{
-          backgroundColor: dark ? "#0f172a" : "#ffffff",
-          backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent 35px, ${dark ? "rgba(148,163,184,0.18)" : "rgba(59,130,246,0.15)"} 35px, ${dark ? "rgba(148,163,184,0.18)" : "rgba(59,130,246,0.15)"} 36px)`,
-        }}
-      />
-
-      {/* Top toolbar */}
-      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-2.5">
-          <Link to="/" className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-bold text-secondary-foreground transition-transform hover:scale-105">
-            <ArrowRight className="h-4 w-4" /> الرئيسية
-          </Link>
-          <h1 className="font-display text-xl font-extrabold text-kid-purple">سبورة إكرام</h1>
-
-          <div className="mx-auto flex flex-wrap items-center gap-2">
-            <button aria-label="إدراج صورة" title="إدراج صورة من الجهاز" onClick={() => fileRef.current?.click()} className={iconBtn}>
-              <ImagePlus className="h-5 w-5 text-kid-blue" />
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) insertImage(f); e.target.value = ""; }} />
-
-            <button aria-label="المصحف الشريف" title="مصحف ورش" onClick={() => setMushafOpen(true)} className={iconBtn}>
-              <BookOpen className="h-5 w-5 text-kid-yellow" fill="currentColor" />
-            </button>
-
-            <button aria-label="الكاميرا" title="كاميرا المعلم" onClick={toggleCamera} className={iconBtn}>
-              {camOn ? <CameraOff className="h-5 w-5 text-kid-red" /> : <Video className="h-5 w-5 text-kid-green" />}
-            </button>
-            <button aria-label="تسجيل الدرس" title={recording ? "إيقاف التسجيل" : "تسجيل الدرس"} onClick={toggleRecord} className={iconBtn}>
-              <Circle className={`h-5 w-5 ${recording ? "animate-pulse text-kid-red" : "text-kid-red"}`} fill="currentColor" />
-            </button>
-
-            <button aria-label="الصوت" title="الصوت" onClick={() => setMuted((m) => !m)} className={iconBtn}>
-              {muted ? <VolumeX className="h-5 w-5 text-muted-foreground" /> : <Volume2 className="h-5 w-5 text-kid-purple" />}
-            </button>
-            <button aria-label="الوضع المظلم" title="الوضع المظلم" onClick={() => setDark((d) => !d)} className={iconBtn}>
-              {dark ? <Sun className="h-5 w-5 text-kid-yellow" /> : <Moon className="h-5 w-5 text-kid-blue" />}
-            </button>
-
-            <span className="mx-1 h-6 w-px bg-border" />
-
-            <button aria-label="تراجع" title="تراجع" onClick={undo} disabled={undoStack.current.length === 0 && historyTick >= 0} className={`${iconBtn} disabled:opacity-40`}>
-              <Undo2 className="h-5 w-5" />
-            </button>
-            <button aria-label="إعادة" title="إعادة" onClick={redo} disabled={redoStack.current.length === 0 && historyTick >= 0} className={`${iconBtn} disabled:opacity-40`}>
-              <Redo2 className="h-5 w-5" />
-            </button>
-
-            <span className="mx-1 h-6 w-px bg-border" />
-
-            <button aria-label="تصغير" title="تصغير" onClick={() => zoomBy(1 / 1.2)} className={iconBtn}><ZoomOut className="h-5 w-5" /></button>
-            <span className="w-12 text-center text-sm font-bold">{Math.round(zoom * 100)}%</span>
-            <button aria-label="تكبير" title="تكبير" onClick={() => zoomBy(1.2)} className={iconBtn}><ZoomIn className="h-5 w-5" /></button>
-            <button aria-label="إعادة الضبط" title="إعادة الضبط" onClick={() => setZoom(1)} className={iconBtn}><Maximize className="h-5 w-5" /></button>
-          </div>
+    <div dir="rtl" className={`${dark ? "dark" : ""} board-page font-body`}>
+      <canvas ref={canvasRef} aria-label="مساحة السبورة" onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} className={`board-canvas board-cursor-${tool}`} />
+      <header className="board-header">
+        <Button asChild variant="ghost" className="board-home"><Link to="/"><ArrowRight /> <span>الرئيسية</span></Link></Button>
+        <div className="board-header-actions">
+          <Button variant="ghost" aria-label="المصحف الشريف" title="المصحف الشريف" onClick={() => setMushafOpen(true)} className={iconBtn}><BookOpen className="text-kid-yellow" fill="currentColor" /></Button>
+          <Button variant="ghost" aria-label="الكاميرا" title="الكاميرا" onClick={toggleCamera} className={iconBtn}>{camOn ? <CameraOff className="text-kid-green" /> : <Video />}</Button>
+          <Button variant="ghost" aria-label="تسجيل الدرس" title={recording ? "إيقاف التسجيل" : "تسجيل الدرس"} onClick={toggleRecord} className={iconBtn}><Circle className={`text-kid-red ${recording ? "animate-pulse" : ""}`} fill="currentColor" /></Button>
+          <Button variant="ghost" aria-label="الوضع المظلم" title="الوضع المظلم" onClick={() => setDark(d => !d)} className={iconBtn}>{dark ? <Sun className="text-kid-yellow" /> : <Moon />}</Button>
         </div>
       </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {/* Board with zoom */}
-        <div className="overflow-auto rounded-[2rem] border-8 border-kid-yellow/60 bg-card shadow-xl" style={{ maxHeight: "70vh" }}>
-          <div style={{ width: W * zoom, height: H * zoom }}>
-            <canvas
-              ref={canvasRef}
-              width={W}
-              height={H}
-              onPointerDown={start}
-              onPointerMove={move}
-              onPointerUp={stop}
-              onPointerLeave={stop}
-              className="touch-none"
-              style={{ width: W * zoom, height: H * zoom }}
-            />
-          </div>
-        </div>
-
-        {/* teacher camera bubble */}
-        {camOn && (
-          <div className="fixed bottom-24 left-4 z-30 overflow-hidden rounded-2xl border-4 border-kid-green shadow-2xl">
-            <video ref={videoRef} autoPlay playsInline muted className="h-36 w-48 bg-black object-cover" />
-            <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs font-bold text-white">
-              <Camera className="h-3 w-3" /> المعلم
-            </span>
-          </div>
-        )}
-        {recording && (
-          <span className="fixed left-4 top-20 z-30 flex items-center gap-2 rounded-full bg-destructive px-4 py-1.5 text-sm font-bold text-destructive-foreground shadow-lg">
-            <Circle className="h-3 w-3 animate-pulse" fill="currentColor" /> جارٍ تسجيل الدرس...
-          </span>
-        )}
-
-        {/* drawing tools */}
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
-          <div className="flex items-center gap-2 rounded-full bg-card px-4 py-2 shadow">
-            <button aria-label="قلم" onClick={() => setTool("pen")} className={`rounded-full p-1.5 ${tool === "pen" ? "bg-kid-purple/20" : ""}`}>
-              <Pencil className="h-4 w-4 text-kid-purple" />
-            </button>
-            <button aria-label="ممحاة" onClick={() => setTool("eraser")} className={`rounded-full p-1.5 ${tool === "eraser" ? "bg-kid-purple/20" : ""}`}>
-              <Eraser className="h-4 w-4 text-muted-foreground" />
-            </button>
-            {colors.map((c) => (
-              <button
-                key={c.value}
-                aria-label={c.name}
-                onClick={() => { setColor(c.value); setTool("pen"); }}
-                className={`h-8 w-8 rounded-full transition-transform hover:scale-110 ${color === c.value && tool === "pen" ? "scale-110 ring-4 ring-foreground/20" : ""}`}
-                style={{ backgroundColor: c.value }}
-              />
-            ))}
-          </div>
-          <label className="flex items-center gap-2 rounded-full bg-card px-4 py-2 text-sm font-bold shadow">
-            حجم القلم
-            <input type="range" min={3} max={24} value={size} onChange={(e) => setSize(Number(e.target.value))} className="accent-kid-purple" />
-          </label>
-          <button onClick={clear} className="flex items-center gap-2 rounded-full bg-destructive px-5 py-2.5 font-bold text-destructive-foreground shadow transition-transform hover:scale-105 active:scale-95">
-            <Trash2 className="h-4 w-4" /> مسح السبورة
-          </button>
-        </div>
-      </main>
-
+      <div className="board-zoom" dir="ltr">
+        <Button variant="ghost" className={iconBtn} aria-label="تصغير" title="تصغير" onClick={() => zoomBy(1 / 1.2)}><ZoomOut /></Button>
+        <span className="w-12 text-center text-xs">{Math.round(zoom * 100)}%</span>
+        <Button variant="ghost" className={iconBtn} aria-label="تكبير" title="تكبير" onClick={() => zoomBy(1.2)}><ZoomIn /></Button>
+        <Button variant="ghost" className={iconBtn} aria-label="إعادة الضبط" title="إعادة الضبط" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Maximize /></Button>
+      </div>
+      <div className="board-history" dir="ltr">
+        <Button variant="ghost" className={iconBtn} aria-label="تراجع" title="تراجع" disabled={!undoStack.current.length} onClick={undo}><Undo2 /></Button>
+        <Button variant="ghost" className={iconBtn} aria-label="إعادة" title="إعادة" disabled={!redoStack.current.length} onClick={redo}><Redo2 /></Button>
+      </div>
+      <nav className="board-toolbar" aria-label="أدوات الرسم">
+        {paletteOpen && <div className="board-palette" dir="rtl">
+          <div className="flex justify-between gap-2">{colors.map(c => <Button key={c.token} variant="ghost" aria-label={c.name} title={c.name} aria-pressed={color === c.token} onClick={() => setColor(c.token)} className={`board-swatch board-swatch-${c.token} ${color === c.token ? "board-swatch-active" : ""}`} />)}</div>
+          <label className="mt-4 flex items-center gap-3 text-sm">سماكة الخط <input aria-label="سماكة الخط" type="range" min={2} max={24} value={size} onChange={e => setSize(Number(e.target.value))} className="min-w-0 flex-1 accent-kid-blue" /><span className="w-5">{size}</span></label>
+        </div>}
+        <Button variant="ghost" className={`${iconBtn} ${tool === "select" ? "board-tool-active" : ""}`} aria-label="التحديد والانتقال" title="التحديد والانتقال" aria-pressed={tool === "select"} onClick={() => { setTool("select"); setPaletteOpen(false); }}><MousePointer2 /></Button>
+        <Button variant="ghost" className={`${iconBtn} ${tool === "pen" ? "board-tool-active" : ""}`} aria-label="قلم" title="القلم والألوان" aria-pressed={tool === "pen"} onClick={() => { setTool("pen"); setPaletteOpen(p => !p); }}><Pencil /></Button>
+        <Button variant="ghost" className={`${iconBtn} ${tool === "eraser" ? "board-tool-active" : ""}`} aria-label="ممحاة" title="ممحاة" aria-pressed={tool === "eraser"} onClick={() => { setTool("eraser"); setPaletteOpen(false); }}><Eraser /></Button>
+        <Button variant="ghost" className={`${iconBtn} ${tool === "highlighter" ? "board-tool-active" : ""}`} aria-label="التظليل" title="التظليل" aria-pressed={tool === "highlighter"} onClick={() => { setTool("highlighter"); setPaletteOpen(true); }}><Highlighter /></Button>
+        <Button variant="ghost" className={`${iconBtn} ${tool === "text" ? "board-tool-active" : ""}`} aria-label="النص" title="النص" aria-pressed={tool === "text"} onClick={() => { setTool("text"); setPaletteOpen(false); }}><Type /></Button>
+        <Button variant="ghost" className={iconBtn} aria-label="إدراج صورة" title="إدراج صورة" onClick={() => fileRef.current?.click()}><ImagePlus /></Button>
+        <Button variant="ghost" className={`${iconBtn} text-kid-red`} aria-label="مسح السبورة" title="مسح السبورة" onClick={clear}><Trash2 /></Button>
+      </nav>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) insertImage(file); e.target.value = ""; }} />
+      {textEntry && <form className="board-text-entry" onSubmit={e => { e.preventDefault(); commitText(); }}><input autoFocus aria-label="النص المراد إضافته" value={textEntry.value} onChange={e => setTextEntry({ ...textEntry, value: e.target.value })} /><Button type="submit" variant="ghost" className={iconBtn} aria-label="إضافة النص"><Check /></Button><Button type="button" variant="ghost" className={iconBtn} aria-label="إلغاء" onClick={() => setTextEntry(null)}><X /></Button></form>}
+      {camOn && <div className="board-camera"><video ref={videoRef} autoPlay playsInline muted /><span><Camera className="h-3 w-3" /> المعلم</span></div>}
+      {recording && <span className="board-recording"><Circle className="h-3 w-3 animate-pulse text-kid-red" fill="currentColor" /> جارٍ تسجيل الدرس...</span>}
+      {error && <div role="alert" className="board-error">{error}<Button variant="ghost" aria-label="إغلاق التنبيه" onClick={() => setError("")}><X /></Button></div>}
       {/* Mushaf modal */}
       {mushafOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" onClick={() => setMushafOpen(false)}>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-board-overlay p-4" onClick={() => setMushafOpen(false)}>
           <div dir="rtl" className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {/* sub toolbar */}
             <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/60 px-4 py-2.5">
-              <button aria-label="الفهرس" title="فهرس السور" onClick={() => setIndexOpen((o) => !o)} className={iconBtn}>
+              <Button aria-label="الفهرس" title="فهرس السور" onClick={() => setIndexOpen((o) => !o)} className={iconBtn}>
                 <Menu className="h-5 w-5" />
-              </button>
+              </Button>
               <div className="flex items-center gap-1 rounded-full bg-card px-3 py-1.5 shadow">
                 <span className="text-sm font-bold">ص</span>
                 <input
@@ -399,19 +225,19 @@ function Board() {
                   inputMode="numeric"
                 />
               </div>
-              <button onClick={goToPage} className="rounded-full bg-kid-blue px-4 py-1.5 text-sm font-bold text-white shadow transition-transform hover:scale-105">
+              <Button onClick={goToPage} className="rounded-full bg-kid-blue px-4 py-1.5 text-sm font-bold text-primary-foreground shadow transition-transform hover:scale-105">
                 اذهب
-              </button>
-              <button aria-label="قلم" onClick={() => setTool("pen")} className={`${iconBtn} ${tool === "pen" ? "ring-2 ring-kid-purple" : ""}`}>
+              </Button>
+              <Button aria-label="قلم" onClick={() => setTool("pen")} className={`${iconBtn} ${tool === "pen" ? "ring-2 ring-kid-purple" : ""}`}>
                 <Pencil className="h-4 w-4" />
-              </button>
-              <button aria-label="ممحاة" onClick={() => setTool("eraser")} className={`${iconBtn} ${tool === "eraser" ? "ring-2 ring-kid-purple" : ""}`}>
+              </Button>
+              <Button aria-label="ممحاة" onClick={() => setTool("eraser")} className={`${iconBtn} ${tool === "eraser" ? "ring-2 ring-kid-purple" : ""}`}>
                 <Eraser className="h-4 w-4" />
-              </button>
+              </Button>
               <span className="mx-auto font-display text-lg font-extrabold text-kid-purple">مصحف الأحكام — رواية ورش عن نافع</span>
-              <button aria-label="إغلاق" onClick={() => setMushafOpen(false)} className={iconBtn}>
+              <Button aria-label="إغلاق" onClick={() => setMushafOpen(false)} className={iconBtn}>
                 <X className="h-5 w-5" />
-              </button>
+              </Button>
             </div>
 
             <div className="relative flex flex-1 overflow-hidden">
@@ -429,14 +255,14 @@ function Board() {
                   </div>
                   <div className="flex-1 overflow-y-auto p-2">
                     {filteredSurahs.map((s) => (
-                      <button
+                      <Button
                         key={s.n}
                         onClick={() => { setPage(s.page); setPageInput(String(s.page)); setIndexOpen(false); }}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-bold transition-colors hover:bg-secondary ${s.page === page ? "bg-kid-purple/15 text-kid-purple" : ""}`}
                       >
                         <span>{s.n}. {s.name}</span>
                         <span className="text-xs text-muted-foreground">ص {s.page}</span>
-                      </button>
+                      </Button>
                     ))}
                     {filteredSurahs.length === 0 && <p className="p-4 text-center text-sm text-muted-foreground">لا توجد نتائج</p>}
                   </div>
@@ -445,17 +271,17 @@ function Board() {
 
               {/* mushaf page */}
               <div className="flex flex-1 flex-col items-center overflow-y-auto p-4">
-                <button
+                <Button
                   onClick={dropMushafOnBoard}
-                  className="mb-3 rounded-full bg-kid-green px-6 py-2.5 font-display text-lg font-extrabold text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                  className="mb-3 rounded-full bg-kid-green px-6 py-2.5 font-display text-lg font-extrabold text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
                 >
                   + للسبورة
-                </button>
+                </Button>
                 <MushafPageCanvas page={page} />
                 <div className="mt-3 flex items-center gap-3">
-                  <button onClick={() => { const p = Math.max(1, page - 1); setPage(p); setPageInput(String(p)); }} className="rounded-full bg-secondary px-4 py-1.5 text-sm font-bold shadow hover:scale-105">السابقة</button>
+                  <Button onClick={() => { const p = Math.max(1, page - 1); setPage(p); setPageInput(String(p)); }} className="rounded-full bg-secondary px-4 py-1.5 text-sm font-bold shadow hover:scale-105">السابقة</Button>
                   <span className="text-sm font-bold text-muted-foreground">سورة {surahForPage(page).name} — صفحة {page} من {TOTAL_PAGES}</span>
-                  <button onClick={() => { const p = Math.min(TOTAL_PAGES, page + 1); setPage(p); setPageInput(String(p)); }} className="rounded-full bg-secondary px-4 py-1.5 text-sm font-bold shadow hover:scale-105">التالية</button>
+                  <Button onClick={() => { const p = Math.min(TOTAL_PAGES, page + 1); setPage(p); setPageInput(String(p)); }} className="rounded-full bg-secondary px-4 py-1.5 text-sm font-bold shadow hover:scale-105">التالية</Button>
                 </div>
               </div>
             </div>
@@ -471,7 +297,8 @@ function MushafPageCanvas({ page }: { page: number }) {
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    drawMushafPage(canvas.getContext("2d")!, canvas.width, canvas.height, page);
+    const ctx = canvas.getContext("2d");
+    if (ctx) drawMushafPage(ctx, canvas.width, canvas.height, page);
   }, [page]);
   return (
     <canvas

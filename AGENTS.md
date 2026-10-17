@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep board artwork in a retained client-side scene and render it on a viewport-sized canvas; this preserves artwork during resizing and zooming while keeping the controls independent of the scene transform.

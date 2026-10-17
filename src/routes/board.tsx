@@ -31,7 +31,7 @@ const practiceLetters = ["ا", "ب", "ت", "ث", "ج", "ح", "خ", "د", "ر", "
 
 function Board() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [color, setColor] = useState(colors[4].value);
+  const [color, setColor] = useState(colors[4]!.value);
   const [size, setSize] = useState(8);
   const [letter, setLetter] = useState("ب");
   const drawing = useRef(false);

@@ -39,7 +39,7 @@ function Games() {
   const [picked, setPicked] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const q = questions[round % questions.length];
+  const q = questions[round % questions.length]!;
   const options = useMemo(() => shuffle(q.options), [round]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const speak = () => {

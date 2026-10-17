@@ -27,6 +27,15 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
   --color-background: var(--background);
+  --color-kid-red: oklch(0.65 0.22 25);
+  --color-kid-orange: oklch(0.72 0.18 55);
+  --color-kid-yellow: oklch(0.85 0.17 90);
+  --color-kid-green: oklch(0.62 0.17 150);
+  --color-kid-blue: oklch(0.62 0.17 245);
+  --color-kid-purple: oklch(0.55 0.22 300);
+  --font-fun: "Baloo 2", cursive;
+  --font-display: "Baloo Bhaijaan 2", "Cairo", sans-serif;
+  --font-body: "Cairo", sans-serif;
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -71,7 +80,7 @@
   --popover-foreground: oklch(0.129 0.042 264.695);
   --primary: oklch(0.208 0.042 265.755);
   --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
+  --secondary: oklch(0.95 0.04 300);
   --secondary-foreground: oklch(0.208 0.042 265.755);
   --muted: oklch(0.968 0.007 247.896);
   --muted-foreground: oklch(0.554 0.046 257.417);
@@ -142,3 +151,9 @@
     color: var(--color-foreground);
   }
 }
+
+@utility bg-hero { background: radial-gradient(circle at 10% 10%, oklch(0.95 0.06 90), transparent 40%), radial-gradient(circle at 90% 30%, oklch(0.94 0.05 300), transparent 40%), oklch(0.99 0.01 90); }
+@utility icon-btn { display:inline-flex; height:2.5rem; width:2.5rem; align-items:center; justify-content:center; border-radius:9999px; background: var(--color-secondary); color: var(--color-kid-purple); }
+@utility badge { display:inline-flex; align-items:center; gap:.35rem; border-radius:9999px; padding:.4rem 1rem; font-weight:700; font-size:.875rem; }
+@utility wiggle { animation: wiggle 2.4s ease-in-out infinite; }
+@keyframes wiggle { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-3px) rotate(-6deg)} }

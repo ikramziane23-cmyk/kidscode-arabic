@@ -102,7 +102,8 @@ function Board() {
     if (tool === "text") { setTextEntry({ point: p, value: "" }); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
     if (tool === "select") {
-      const index = items.current.findLastIndex(i => i.kind === "image" ? p.x >= i.x && p.x <= i.x + i.w && p.y >= i.y && p.y <= i.y + i.h : i.kind === "text" ? p.x >= i.x - i.text.length * i.size && p.x <= i.x && Math.abs(p.y - i.y) <= i.size : false);
+      const reverseIndex = [...items.current].reverse().findIndex(i => i.kind === "image" ? p.x >= i.x && p.x <= i.x + i.w && p.y >= i.y && p.y <= i.y + i.h : i.kind === "text" ? p.x >= i.x - i.text.length * i.size && p.x <= i.x && Math.abs(p.y - i.y) <= i.size : false);
+      const index = reverseIndex < 0 ? -1 : items.current.length - 1 - reverseIndex;
       if (index >= 0) snapshot();
       drag.current = { last: { x: e.clientX, y: e.clientY }, item: index >= 0 ? index : null }; return;
     }

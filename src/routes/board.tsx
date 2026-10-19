@@ -161,7 +161,7 @@ function Board() {
       recorderRef.current = rec; rec.start(); setRecording(true);
     } catch { setError("التسجيل غير متاح في هذا المتصفح"); }
   };
-  const goToPage = () => { const p = Math.min(TOTAL_PAGES, Math.max(1, Number(pageInput) || 1)); setPage(p); setPageInput(String(p)); };
+  const goToPage = () => goTo(Number(pageInput) || 1);
   const zoomBy = (factor: number) => {
     const next = Math.min(3, Math.max(0.4, +(zoom * factor).toFixed(2)));
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;

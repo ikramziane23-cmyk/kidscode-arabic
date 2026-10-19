@@ -51,49 +51,7 @@ export function surahForPage(page: number) {
   return current;
 }
 
-// Decorative mushaf-style page rendered on canvas (teaching aid, not a real mushaf scan).
-export function drawMushafPage(ctx: CanvasRenderingContext2D, w: number, h: number, page: number) {
-  const surah = surahForPage(page);
-  ctx.save();
-  ctx.fillStyle = "#fdfaf0";
-  ctx.fillRect(0, 0, w, h);
-  // ornate double border
-  ctx.strokeStyle = "#b8860b";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(14, 14, w - 28, h - 28);
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(24, 24, w - 48, h - 48);
-  // surah header band
-  ctx.fillStyle = "#f3e3b3";
-  ctx.fillRect(w / 2 - 190, 40, 380, 52);
-  ctx.strokeRect(w / 2 - 190, 40, 380, 52);
-  ctx.fillStyle = "#5b4308";
-  ctx.textAlign = "center";
-  ctx.font = "bold 30px 'Amiri Quran', 'Scheherazade New', serif";
-  ctx.fillText(`سورة ${surah.name}`, w / 2, 78);
-  // bismillah
-  ctx.font = "26px 'Amiri Quran', 'Scheherazade New', serif";
-  ctx.fillStyle = "#3d2f07";
-  ctx.fillText("بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", w / 2, 140);
-  // ayah placeholder lines (ruled mushaf lines)
-  ctx.strokeStyle = "#d8c98f";
-  ctx.lineWidth = 1;
-  for (let y = 185; y < h - 70; y += 44) {
-    ctx.beginPath();
-    ctx.moveTo(50, y);
-    ctx.lineTo(w - 50, y);
-    ctx.stroke();
-    ctx.fillStyle = "#8a6d1f";
-    ctx.beginPath();
-    ctx.arc(w - 60, y - 10, 9, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#6b5510";
-  ctx.font = "18px serif";
-  ctx.fillText("صفحة تعليمية للشرح والتظليل — رواية ورش عن نافع", w / 2, h - 42);
-  // page number
-  ctx.fillStyle = "#5b4308";
-  ctx.font = "bold 20px serif";
-  ctx.fillText(`﴿ ${page} ﴾`, w / 2, h - 18);
-  ctx.restore();
+// Real scanned Warsh mushaf pages (CORS-enabled, so they can be drawn into the board canvas).
+export function mushafPageUrl(page: number) {
+  return `https://raw.githubusercontent.com/maknon/Quran/main/pages-warsh/${page}.png`;
 }

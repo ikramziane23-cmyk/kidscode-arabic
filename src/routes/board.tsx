@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, useEffect, useCallback } from "react";
-import { ArrowRight, Eraser, Trash2, Pencil, ImagePlus, BookOpen, Video, Circle, Moon, Sun, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Menu, Search, X, Camera, CameraOff, MousePointer2, Highlighter, Type, Check } from "lucide-react";
+import { ArrowRight, Eraser, Trash2, Pencil, ImagePlus, BookOpen, Video, Circle, Moon, Sun, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Menu, Search, X, Camera, CameraOff, MousePointer2, Highlighter, Type, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SURAHS, TOTAL_PAGES, surahForPage, drawMushafPage } from "@/lib/mushaf-data";
+import { SURAHS, TOTAL_PAGES, surahForPage, mushafPageUrl } from "@/lib/mushaf-data";
 
 export const Route = createFileRoute("/board")({
   head: () => ({
@@ -136,10 +136,13 @@ function Board() {
     img.onload = () => { addImage(img); URL.revokeObjectURL(url); };
     img.onerror = () => { URL.revokeObjectURL(url); setError("تعذر فتح الصورة"); }; img.src = url;
   };
+  const [pageLoading, setPageLoading] = useState(true);
+  const goTo = (p: number) => { const n = Math.min(TOTAL_PAGES, Math.max(1, p)); if (n !== page) setPageLoading(true); setPage(n); setPageInput(String(n)); };
   const dropMushafOnBoard = () => {
-    const off = document.createElement("canvas"); off.width = 620; off.height = 880;
-    const ctx = off.getContext("2d"); if (!ctx) return;
-    drawMushafPage(ctx, off.width, off.height, page); addImage(off); setMushafOpen(false);
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = () => { addImage(img); setMushafOpen(false); };
+    img.onerror = () => setError("تعذر إدراج صفحة المصحف");
+    img.src = mushafPageUrl(page);
   };
   const toggleCamera = async () => {
     if (camOn) { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null; setCamOn(false); return; }
@@ -158,7 +161,7 @@ function Board() {
       recorderRef.current = rec; rec.start(); setRecording(true);
     } catch { setError("التسجيل غير متاح في هذا المتصفح"); }
   };
-  const goToPage = () => { const p = Math.min(TOTAL_PAGES, Math.max(1, Number(pageInput) || 1)); setPage(p); setPageInput(String(p)); };
+  const goToPage = () => goTo(Number(pageInput) || 1);
   const zoomBy = (factor: number) => {
     const next = Math.min(3, Math.max(0.4, +(zoom * factor).toFixed(2)));
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
@@ -209,60 +212,36 @@ function Board() {
       {error && <div role="alert" className="board-error">{error}<Button variant="ghost" aria-label="إغلاق التنبيه" onClick={() => setError("")}><X /></Button></div>}
       {/* Mushaf modal */}
       {mushafOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-board-overlay p-4" onClick={() => setMushafOpen(false)}>
-          <div dir="rtl" className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            {/* sub toolbar */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/60 px-4 py-2.5">
-              <Button aria-label="الفهرس" title="فهرس السور" onClick={() => setIndexOpen((o) => !o)} className={iconBtn}>
-                <Menu className="h-5 w-5" />
-              </Button>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-board-overlay p-3" onClick={() => setMushafOpen(false)}>
+          <div dir="rtl" className="relative flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/60 px-3 py-2">
+              <Button variant="ghost" aria-label="الفهرس" title="فهرس السور" onClick={() => setIndexOpen((o) => !o)} className={iconBtn}><Menu /></Button>
+              <select aria-label="اختر السورة" value={surahForPage(page).n} onChange={e => { const s = SURAHS.find(x => x.n === Number(e.target.value)); if (s) goTo(s.page); }} className="max-w-36 rounded-full bg-card px-3 py-1.5 text-sm font-bold shadow outline-none">
+                {SURAHS.map(s => <option key={s.n} value={s.n}>{s.n}. {s.name}</option>)}
+              </select>
               <div className="flex items-center gap-1 rounded-full bg-card px-3 py-1.5 shadow">
                 <span className="text-sm font-bold">ص</span>
-                <input
-                  value={pageInput}
-                  onChange={(e) => setPageInput(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && goToPage()}
-                  className="w-14 bg-transparent text-center font-bold outline-none"
-                  inputMode="numeric"
-                />
+                <input aria-label="رقم الصفحة" value={pageInput} onChange={(e) => setPageInput(e.target.value.replace(/\D/g, ""))} onKeyDown={(e) => e.key === "Enter" && goToPage()} className="w-12 bg-transparent text-center font-bold outline-none" inputMode="numeric" />
               </div>
-              <Button onClick={goToPage} className="rounded-full bg-kid-blue px-4 py-1.5 text-sm font-bold text-primary-foreground shadow transition-transform hover:scale-105">
-                اذهب
-              </Button>
-              <Button aria-label="قلم" onClick={() => setTool("pen")} className={`${iconBtn} ${tool === "pen" ? "ring-2 ring-kid-purple" : ""}`}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button aria-label="ممحاة" onClick={() => setTool("eraser")} className={`${iconBtn} ${tool === "eraser" ? "ring-2 ring-kid-purple" : ""}`}>
-                <Eraser className="h-4 w-4" />
-              </Button>
-              <span className="mx-auto font-display text-lg font-extrabold text-kid-purple">مصحف الأحكام — رواية ورش عن نافع</span>
-              <Button aria-label="إغلاق" onClick={() => setMushafOpen(false)} className={iconBtn}>
-                <X className="h-5 w-5" />
-              </Button>
+              <Button onClick={goToPage} className="rounded-full bg-kid-blue px-4 py-1.5 text-sm font-bold text-primary-foreground shadow">اذهب</Button>
+              <div className="ms-auto flex items-center gap-1">
+                <Button variant="ghost" aria-label="الصفحة السابقة" title="الصفحة السابقة" disabled={page <= 1} onClick={() => goTo(page - 1)} className={iconBtn}><ChevronRight /></Button>
+                <Button variant="ghost" aria-label="الصفحة التالية" title="الصفحة التالية" disabled={page >= TOTAL_PAGES} onClick={() => goTo(page + 1)} className={iconBtn}><ChevronLeft /></Button>
+                <Button variant="ghost" aria-label="إغلاق" onClick={() => setMushafOpen(false)} className={iconBtn}><X /></Button>
+              </div>
             </div>
 
             <div className="relative flex flex-1 overflow-hidden">
-              {/* surah index drawer */}
               {indexOpen && (
                 <div className="absolute inset-y-0 right-0 z-10 flex w-72 flex-col border-l border-border bg-card shadow-xl">
                   <div className="flex items-center gap-2 border-b border-border p-3">
                     <Search className="h-4 w-4 text-muted-foreground" />
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="ابحث عن سورة..."
-                      className="w-full bg-transparent text-sm font-bold outline-none"
-                    />
+                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث باسم السورة أو رقم الصفحة..." className="w-full bg-transparent text-sm font-bold outline-none" />
                   </div>
                   <div className="flex-1 overflow-y-auto p-2">
                     {filteredSurahs.map((s) => (
-                      <Button
-                        key={s.n}
-                        onClick={() => { setPage(s.page); setPageInput(String(s.page)); setIndexOpen(false); }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-bold transition-colors hover:bg-secondary ${s.page === page ? "bg-kid-purple/15 text-kid-purple" : ""}`}
-                      >
-                        <span>{s.n}. {s.name}</span>
-                        <span className="text-xs text-muted-foreground">ص {s.page}</span>
+                      <Button variant="ghost" key={s.n} onClick={() => { goTo(s.page); setIndexOpen(false); }} className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-bold ${s.page === page ? "bg-kid-purple/15 text-kid-purple" : ""}`}>
+                        <span>{s.n}. {s.name}</span><span className="text-xs text-muted-foreground">ص {s.page}</span>
                       </Button>
                     ))}
                     {filteredSurahs.length === 0 && <p className="p-4 text-center text-sm text-muted-foreground">لا توجد نتائج</p>}
@@ -270,43 +249,20 @@ function Board() {
                 </div>
               )}
 
-              {/* mushaf page */}
               <div className="flex flex-1 flex-col items-center overflow-y-auto p-4">
-                <Button
-                  onClick={dropMushafOnBoard}
-                  className="mb-3 rounded-full bg-kid-green px-6 py-2.5 font-display text-lg font-extrabold text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
-                >
-                  + للسبورة
-                </Button>
-                <MushafPageCanvas page={page} />
-                <div className="mt-3 flex items-center gap-3">
-                  <Button onClick={() => { const p = Math.max(1, page - 1); setPage(p); setPageInput(String(p)); }} className="rounded-full bg-secondary px-4 py-1.5 text-sm font-bold shadow hover:scale-105">السابقة</Button>
-                  <span className="text-sm font-bold text-muted-foreground">سورة {surahForPage(page).name} — صفحة {page} من {TOTAL_PAGES}</span>
-                  <Button onClick={() => { const p = Math.min(TOTAL_PAGES, page + 1); setPage(p); setPageInput(String(p)); }} className="rounded-full bg-secondary px-4 py-1.5 text-sm font-bold shadow hover:scale-105">التالية</Button>
+                <div className="relative mt-5 w-full max-w-md rounded-2xl border-[6px] border-double border-kid-yellow bg-kid-yellow/10 p-2 pt-7 shadow-lg">
+                  <Button onClick={dropMushafOnBoard} disabled={pageLoading} className="absolute -top-5 left-1/2 -translate-x-1/2 rounded-full bg-kid-green px-6 py-2 font-display text-lg font-extrabold text-primary-foreground shadow-lg hover:bg-kid-green hover:scale-105">+ للسبورة</Button>
+                  <div className="relative aspect-[976/1580] w-full">
+                    {pageLoading && <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-muted-foreground">جارٍ تحميل الصفحة...</div>}
+                    <img key={page} src={mushafPageUrl(page)} alt={`صفحة ${page} من المصحف الشريف — رواية ورش`} crossOrigin="anonymous" onLoad={() => setPageLoading(false)} onError={() => { setPageLoading(false); setError("تعذر تحميل صفحة المصحف، تحقق من الاتصال"); }} className="h-full w-full rounded-lg object-contain" />
+                  </div>
                 </div>
+                <span className="mt-3 text-sm font-bold text-muted-foreground">سورة {surahForPage(page).name} — صفحة {page} من {TOTAL_PAGES}</span>
               </div>
             </div>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-function MushafPageCanvas({ page }: { page: number }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (ctx) drawMushafPage(ctx, canvas.width, canvas.height, page);
-  }, [page]);
-  return (
-    <canvas
-      ref={ref}
-      width={620}
-      height={880}
-      className="w-full max-w-md rounded-xl border-4 border-kid-yellow/70 shadow-lg"
-    />
   );
 }

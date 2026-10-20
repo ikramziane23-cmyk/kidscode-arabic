@@ -27,7 +27,7 @@ const colors = [
 ];
 type Tool = "select" | "pen" | "eraser" | "highlighter" | "text";
 type Point = { x: number; y: number };
-type Item = { kind: "stroke"; points: Point[]; color: string; size: number; tool: Tool } | { kind: "image"; image: HTMLImageElement | HTMLCanvasElement; x: number; y: number; w: number; h: number } | { kind: "text"; text: string; color: string; size: number; x: number; y: number };
+type Item = { kind: "stroke"; points: Point[]; color: string; size: number; tool: Tool } | { kind: "image"; image: HTMLImageElement | HTMLCanvasElement; paper?: boolean; x: number; y: number; w: number; h: number } | { kind: "text"; text: string; color: string; size: number; x: number; y: number };
 function Board() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,7 +74,10 @@ function Board() {
     c.scale(dpr, dpr); c.translate(pan.x, pan.y); c.scale(zoom, zoom);
     for (const item of items.current) {
       c.save();
-      if (item.kind === "image") c.drawImage(item.image, item.x, item.y, item.w, item.h);
+      if (item.kind === "image") {
+        if (item.paper) { c.fillStyle = token("mushaf-paper"); c.fillRect(item.x, item.y, item.w, item.h); }
+        c.drawImage(item.image, item.x, item.y, item.w, item.h);
+      }
       else if (item.kind === "text") { c.fillStyle = token(item.color); c.font = `${item.size}px Cairo, sans-serif`; c.textAlign = "right"; c.fillText(item.text, item.x, item.y); }
       else {
         const first = item.points[0]; if (!first) { c.restore(); continue; }
@@ -123,13 +126,13 @@ function Board() {
   const clear = () => { snapshot(); items.current = []; refresh(); };
   const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(clone()); items.current = previous; refresh(); };
   const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(clone()); items.current = next; refresh(); };
-  const addImage = (image: HTMLImageElement | HTMLCanvasElement) => {
+  const addImage = (image: HTMLImageElement | HTMLCanvasElement, paper = false) => {
     const width = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
     const height = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
     if (!width || !height) return;
     snapshot();
     const bounds = centeredImageBounds({ width, height }, { width: window.innerWidth, height: window.innerHeight }, zoom, pan);
-    items.current.push({ kind: "image", image, ...bounds }); refresh();
+    items.current.push({ kind: "image", image, paper, ...bounds }); refresh();
   };
   const insertImage = (file: File) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -200,7 +203,7 @@ function Board() {
       {camOn && <div className="board-camera"><video ref={videoRef} autoPlay playsInline muted /><span><Camera className="h-3 w-3" /> المعلم</span></div>}
       {recording && <span className="board-recording"><Circle className="h-3 w-3 animate-pulse text-kid-red" fill="currentColor" /> جارٍ تسجيل الدرس...</span>}
       {error && <div role="alert" className="board-error">{error}<Button variant="ghost" aria-label="إغلاق التنبيه" onClick={() => setError("")}><X /></Button></div>}
-      <MushafReader open={mushafOpen} onOpenChange={setMushafOpen} onInsert={addImage} />
+      <MushafReader open={mushafOpen} onOpenChange={setMushafOpen} onInsert={image => addImage(image, true)} />
     </div>
   );
 }

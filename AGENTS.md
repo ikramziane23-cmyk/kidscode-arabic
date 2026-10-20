@@ -11,4 +11,5 @@
 
 - Keep board artwork in a retained client-side scene and render it on a viewport-sized canvas; this preserves artwork during resizing and zooming while keeping the controls independent of the scene transform.
 - Keep the mushaf reader in a separate portaled dialog and insert its already-loaded original image into the board scene; this isolates reader presentation from board transforms and avoids a second download or resampling on insertion.
+- Paint a white paper backing under inserted mushaf images without modifying their pixels; transparent scan backgrounds must not reveal the dark board behind Quran text.
 - Use centeredImageBounds for image placement with viewport, zoom and pan inputs; this keeps full-image placement consistent and independently testable.

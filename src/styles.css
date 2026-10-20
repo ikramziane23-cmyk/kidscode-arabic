@@ -171,6 +171,46 @@
   --color-board-pink: oklch(0.65 0.22 350);
   --color-board-ink: oklch(0.25 0.005 260);
   --shadow-board-floating: 0 8px 28px oklch(0 0 0 / 22%);
+  --color-mushaf-paper: oklch(1 0 0);
+  --color-mushaf-ink: oklch(0.28 0.015 160);
+  --color-mushaf-muted: oklch(0.52 0.015 160);
+  --color-mushaf-border: oklch(0.9 0.01 160);
+  --color-mushaf-hover: oklch(0.97 0.012 160);
+  --color-mushaf-green: oklch(0.48 0.14 150);
+  --color-mushaf-green-hover: oklch(0.42 0.12 150);
+  --shadow-mushaf: 0 8px 40px oklch(0.25 0.01 160 / 12%);
+}
+.mushaf-overlay { position: fixed; inset: 0; z-index: 40; background: var(--color-mushaf-paper); }
+.mushaf-reader { position: fixed; z-index: 50; inset: 16px; margin: auto; width: min(720px, calc(100vw - 32px)); height: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--color-mushaf-border); border-radius: 8px; background: var(--color-mushaf-paper); color: var(--color-mushaf-ink); box-shadow: var(--shadow-mushaf); outline: none; }
+.mushaf-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--color-mushaf-border); }
+.mushaf-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--color-mushaf-border); }
+.mushaf-icon { flex: 0 0 auto; width: 36px; height: 36px; padding: 0; border-radius: 6px; color: var(--color-mushaf-ink); }
+.mushaf-icon:hover, .mushaf-go:hover, .mushaf-index-item:hover { background: var(--color-mushaf-hover); color: var(--color-mushaf-ink); }
+.mushaf-icon svg { width: 20px; height: 20px; }
+.mushaf-select { min-width: 0; width: 145px; height: 36px; padding: 0 8px; border: 1px solid var(--color-mushaf-border); border-radius: 6px; background: var(--color-mushaf-paper); color: var(--color-mushaf-ink); font-size: 14px; }
+.mushaf-page-form { display: flex; align-items: center; gap: 4px; height: 36px; padding-right: 8px; border: 1px solid var(--color-mushaf-border); border-radius: 6px; }
+.mushaf-page-form input { width: 38px; text-align: center; outline: none; background: var(--color-mushaf-paper); }
+.mushaf-go { height: 34px; padding: 0 8px; color: var(--color-mushaf-green); }
+.mushaf-navigation { display: flex; align-items: center; gap: 4px; margin-inline-start: auto; }
+.mushaf-count { width: 75px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.mushaf-body { position: relative; display: flex; flex-direction: column; min-height: 0; flex: 1; background: var(--color-mushaf-paper); }
+.mushaf-insert-bar { display: flex; justify-content: center; padding: 12px; flex-shrink: 0; }
+.mushaf-insert { min-width: 160px; height: 44px; font-size: 20px; font-weight: 800; background: var(--color-mushaf-green); color: var(--color-mushaf-paper); border-radius: 6px; }
+.mushaf-insert:hover { background: var(--color-mushaf-green-hover); color: var(--color-mushaf-paper); }
+.mushaf-sheet { position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; padding: 0 12px 12px; }
+.mushaf-page-image { width: 100%; height: 100%; object-fit: contain; filter: none; border-radius: 0; background: var(--color-mushaf-paper); }
+.mushaf-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; text-align: center; color: var(--color-mushaf-muted); }
+.mushaf-index { position: absolute; inset-block: 0; right: 0; z-index: 10; width: min(300px, 100%); display: flex; flex-direction: column; background: var(--color-mushaf-paper); border-left: 1px solid var(--color-mushaf-border); box-shadow: var(--shadow-mushaf); }
+.mushaf-search { display: flex; align-items: center; gap: 8px; padding: 12px; border-bottom: 1px solid var(--color-mushaf-border); }
+.mushaf-search input { min-width: 0; width: 100%; font-size: 13px; outline: none; background: var(--color-mushaf-paper); }
+.mushaf-index-item { display: flex; justify-content: space-between; width: 100%; border-radius: 6px; color: var(--color-mushaf-ink); }
+.mushaf-reader :focus-visible { outline: 2px solid var(--color-mushaf-green); outline-offset: 2px; }
+@media (max-width: 480px) {
+  .mushaf-reader { inset: 0; width: 100vw; height: 100dvh; border: 0; border-radius: 0; }
+  .mushaf-header { padding: 8px 12px; }
+  .mushaf-header h2 { font-size: 18px; }
+  .mushaf-controls { gap: 6px; }
+  .mushaf-navigation { width: 100%; justify-content: center; }
 }
 .board-page { position: fixed; inset: 0; overflow: hidden; }
 .board-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; border: 0; border-radius: 0; touch-action: none; }

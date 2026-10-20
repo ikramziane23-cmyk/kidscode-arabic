@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, useEffect, useCallback } from "react";
-import { ArrowRight, Eraser, Trash2, Pencil, ImagePlus, BookOpen, Video, Circle, Moon, Sun, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Menu, Search, X, Camera, CameraOff, MousePointer2, Highlighter, Type, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Eraser, Trash2, Pencil, ImagePlus, BookOpen, Video, Circle, Moon, Sun, Undo2, Redo2, ZoomIn, ZoomOut, Maximize, X, Camera, CameraOff, MousePointer2, Highlighter, Type, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SURAHS, TOTAL_PAGES, surahForPage, mushafPageUrl } from "@/lib/mushaf-data";
+import { MushafReader } from "@/components/mushaf-reader";
+import { centeredImageBounds } from "@/lib/board-image";
 
 export const Route = createFileRoute("/board")({
   head: () => ({
@@ -26,7 +27,7 @@ const colors = [
 ];
 type Tool = "select" | "pen" | "eraser" | "highlighter" | "text";
 type Point = { x: number; y: number };
-type Item = { kind: "stroke"; points: Point[]; color: string; size: number; tool: Tool } | { kind: "image"; image: HTMLImageElement | HTMLCanvasElement; x: number; y: number; w: number; h: number } | { kind: "text"; text: string; color: string; size: number; x: number; y: number };
+type Item = { kind: "stroke"; points: Point[]; color: string; size: number; tool: Tool } | { kind: "image"; image: HTMLImageElement | HTMLCanvasElement; paper?: boolean; x: number; y: number; w: number; h: number } | { kind: "text"; text: string; color: string; size: number; x: number; y: number };
 function Board() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -51,10 +52,6 @@ function Board() {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState("");
   const [mushafOpen, setMushafOpen] = useState(false);
-  const [indexOpen, setIndexOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageInput, setPageInput] = useState("1");
-  const [search, setSearch] = useState("");
   const [textEntry, setTextEntry] = useState<{ point: Point; value: string } | null>(null);
   const clone = () => items.current.map(i => i.kind === "stroke" ? { ...i, points: [...i.points] } : { ...i });
   const snapshot = () => { undoStack.current.push(clone()); if (undoStack.current.length > 40) undoStack.current.shift(); redoStack.current = []; };
@@ -77,7 +74,10 @@ function Board() {
     c.scale(dpr, dpr); c.translate(pan.x, pan.y); c.scale(zoom, zoom);
     for (const item of items.current) {
       c.save();
-      if (item.kind === "image") c.drawImage(item.image, item.x, item.y, item.w, item.h);
+      if (item.kind === "image") {
+        if (item.paper) { c.fillStyle = token("mushaf-paper"); c.fillRect(item.x, item.y, item.w, item.h); }
+        c.drawImage(item.image, item.x, item.y, item.w, item.h);
+      }
       else if (item.kind === "text") { c.fillStyle = token(item.color); c.font = `${item.size}px Cairo, sans-serif`; c.textAlign = "right"; c.fillText(item.text, item.x, item.y); }
       else {
         const first = item.points[0]; if (!first) { c.restore(); continue; }
@@ -126,23 +126,18 @@ function Board() {
   const clear = () => { snapshot(); items.current = []; refresh(); };
   const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(clone()); items.current = previous; refresh(); };
   const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(clone()); items.current = next; refresh(); };
-  const addImage = (image: HTMLImageElement | HTMLCanvasElement) => {
-    snapshot(); const scale = Math.min(window.innerWidth * 0.7 / image.width, window.innerHeight * 0.65 / image.height, 1) / zoom;
-    const w = image.width * scale, h = image.height * scale;
-    items.current.push({ kind: "image", image, w, h, x: (window.innerWidth / 2 - pan.x) / zoom - w / 2, y: (window.innerHeight / 2 - pan.y) / zoom - h / 2 }); refresh();
+  const addImage = (image: HTMLImageElement | HTMLCanvasElement, paper = false) => {
+    const width = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
+    const height = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+    if (!width || !height) return;
+    snapshot();
+    const bounds = centeredImageBounds({ width, height }, { width: window.innerWidth, height: window.innerHeight }, zoom, pan);
+    items.current.push({ kind: "image", image, paper, ...bounds }); refresh();
   };
   const insertImage = (file: File) => {
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => { addImage(img); URL.revokeObjectURL(url); };
     img.onerror = () => { URL.revokeObjectURL(url); setError("تعذر فتح الصورة"); }; img.src = url;
-  };
-  const [pageLoading, setPageLoading] = useState(true);
-  const goTo = (p: number) => { const n = Math.min(TOTAL_PAGES, Math.max(1, p)); if (n !== page) setPageLoading(true); setPage(n); setPageInput(String(n)); };
-  const dropMushafOnBoard = () => {
-    const img = new Image(); img.crossOrigin = "anonymous";
-    img.onload = () => { addImage(img); setMushafOpen(false); };
-    img.onerror = () => setError("تعذر إدراج صفحة المصحف");
-    img.src = mushafPageUrl(page);
   };
   const toggleCamera = async () => {
     if (camOn) { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null; setCamOn(false); return; }
@@ -161,13 +156,11 @@ function Board() {
       recorderRef.current = rec; rec.start(); setRecording(true);
     } catch { setError("التسجيل غير متاح في هذا المتصفح"); }
   };
-  const goToPage = () => goTo(Number(pageInput) || 1);
   const zoomBy = (factor: number) => {
     const next = Math.min(3, Math.max(0.4, +(zoom * factor).toFixed(2)));
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
     setPan(p => ({ x: cx - (cx - p.x) * next / zoom, y: cy - (cy - p.y) * next / zoom })); setZoom(next);
   };
-  const filteredSurahs = SURAHS.filter(s => s.name.includes(search.trim()) || String(s.page) === search.trim());
   const iconBtn = "board-icon";
   const commitText = () => { if (textEntry?.value.trim()) { snapshot(); items.current.push({ kind: "text", text: textEntry.value, color, size: Math.max(24, size * 4), ...textEntry.point }); refresh(); } setTextEntry(null); };
   return (
@@ -210,59 +203,7 @@ function Board() {
       {camOn && <div className="board-camera"><video ref={videoRef} autoPlay playsInline muted /><span><Camera className="h-3 w-3" /> المعلم</span></div>}
       {recording && <span className="board-recording"><Circle className="h-3 w-3 animate-pulse text-kid-red" fill="currentColor" /> جارٍ تسجيل الدرس...</span>}
       {error && <div role="alert" className="board-error">{error}<Button variant="ghost" aria-label="إغلاق التنبيه" onClick={() => setError("")}><X /></Button></div>}
-      {/* Mushaf modal */}
-      {mushafOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-board-overlay p-3" onClick={() => setMushafOpen(false)}>
-          <div dir="rtl" className="relative flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/60 px-3 py-2">
-              <Button variant="ghost" aria-label="الفهرس" title="فهرس السور" onClick={() => setIndexOpen((o) => !o)} className={iconBtn}><Menu /></Button>
-              <select aria-label="اختر السورة" value={surahForPage(page).n} onChange={e => { const s = SURAHS.find(x => x.n === Number(e.target.value)); if (s) goTo(s.page); }} className="max-w-36 rounded-full bg-card px-3 py-1.5 text-sm font-bold shadow outline-none">
-                {SURAHS.map(s => <option key={s.n} value={s.n}>{s.n}. {s.name}</option>)}
-              </select>
-              <div className="flex items-center gap-1 rounded-full bg-card px-3 py-1.5 shadow">
-                <span className="text-sm font-bold">ص</span>
-                <input aria-label="رقم الصفحة" value={pageInput} onChange={(e) => setPageInput(e.target.value.replace(/\D/g, ""))} onKeyDown={(e) => e.key === "Enter" && goToPage()} className="w-12 bg-transparent text-center font-bold outline-none" inputMode="numeric" />
-              </div>
-              <Button onClick={goToPage} className="rounded-full bg-kid-blue px-4 py-1.5 text-sm font-bold text-primary-foreground shadow">اذهب</Button>
-              <div className="ms-auto flex items-center gap-1">
-                <Button variant="ghost" aria-label="الصفحة السابقة" title="الصفحة السابقة" disabled={page <= 1} onClick={() => goTo(page - 1)} className={iconBtn}><ChevronRight /></Button>
-                <Button variant="ghost" aria-label="الصفحة التالية" title="الصفحة التالية" disabled={page >= TOTAL_PAGES} onClick={() => goTo(page + 1)} className={iconBtn}><ChevronLeft /></Button>
-                <Button variant="ghost" aria-label="إغلاق" onClick={() => setMushafOpen(false)} className={iconBtn}><X /></Button>
-              </div>
-            </div>
-
-            <div className="relative flex flex-1 overflow-hidden">
-              {indexOpen && (
-                <div className="absolute inset-y-0 right-0 z-10 flex w-72 flex-col border-l border-border bg-card shadow-xl">
-                  <div className="flex items-center gap-2 border-b border-border p-3">
-                    <Search className="h-4 w-4 text-muted-foreground" />
-                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث باسم السورة أو رقم الصفحة..." className="w-full bg-transparent text-sm font-bold outline-none" />
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-2">
-                    {filteredSurahs.map((s) => (
-                      <Button variant="ghost" key={s.n} onClick={() => { goTo(s.page); setIndexOpen(false); }} className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-bold ${s.page === page ? "bg-kid-purple/15 text-kid-purple" : ""}`}>
-                        <span>{s.n}. {s.name}</span><span className="text-xs text-muted-foreground">ص {s.page}</span>
-                      </Button>
-                    ))}
-                    {filteredSurahs.length === 0 && <p className="p-4 text-center text-sm text-muted-foreground">لا توجد نتائج</p>}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-1 flex-col items-center overflow-y-auto p-4">
-                <div className="relative mt-5 w-full max-w-md rounded-2xl border-[6px] border-double border-kid-yellow bg-kid-yellow/10 p-2 pt-7 shadow-lg">
-                  <Button onClick={dropMushafOnBoard} disabled={pageLoading} className="absolute -top-5 left-1/2 -translate-x-1/2 rounded-full bg-kid-green px-6 py-2 font-display text-lg font-extrabold text-primary-foreground shadow-lg hover:bg-kid-green hover:scale-105">+ للسبورة</Button>
-                  <div className="relative aspect-[976/1580] w-full">
-                    {pageLoading && <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-muted-foreground">جارٍ تحميل الصفحة...</div>}
-                    <img key={page} src={mushafPageUrl(page)} alt={`صفحة ${page} من المصحف الشريف — رواية ورش`} crossOrigin="anonymous" onLoad={() => setPageLoading(false)} onError={() => { setPageLoading(false); setError("تعذر تحميل صفحة المصحف، تحقق من الاتصال"); }} className="h-full w-full rounded-lg object-contain" />
-                  </div>
-                </div>
-                <span className="mt-3 text-sm font-bold text-muted-foreground">سورة {surahForPage(page).name} — صفحة {page} من {TOTAL_PAGES}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <MushafReader open={mushafOpen} onOpenChange={setMushafOpen} onInsert={image => addImage(image, true)} />
     </div>
   );
 }

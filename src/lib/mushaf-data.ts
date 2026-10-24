@@ -51,7 +51,7 @@ export function surahForPage(page: number) {
   return current;
 }
 
-// Real scanned Warsh mushaf pages (CORS-enabled, so they can be drawn into the board canvas).
+// Real scanned Warsh mushaf pages served locally from /public/mushaf/warsh (1.jpg–604.jpg).
 export function mushafPageUrl(page: number) {
-  return `https://raw.githubusercontent.com/maknon/Quran/main/pages-warsh/${page}.png`;
+  return `/mushaf/warsh/${page}.jpg`;
 }

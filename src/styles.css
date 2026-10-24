@@ -171,7 +171,7 @@
   --color-board-pink: oklch(0.65 0.22 350);
   --color-board-ink: oklch(0.25 0.005 260);
   --shadow-board-floating: 0 8px 28px oklch(0 0 0 / 22%);
-  --color-mushaf-paper: oklch(1 0 0);
+  --color-mushaf-paper: #FFFDF0;
   --color-mushaf-ink: oklch(0.28 0.015 160);
   --color-mushaf-muted: oklch(0.52 0.015 160);
   --color-mushaf-border: oklch(0.9 0.01 160);
@@ -198,7 +198,7 @@
 .mushaf-insert { min-width: 160px; height: 44px; font-size: 20px; font-weight: 800; background: var(--color-mushaf-green); color: var(--color-mushaf-paper); border-radius: 6px; }
 .mushaf-insert:hover { background: var(--color-mushaf-green-hover); color: var(--color-mushaf-paper); }
 .mushaf-sheet { position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; padding: 0 12px 12px; }
-.mushaf-page-image { width: 100%; height: 100%; object-fit: contain; filter: none; border-radius: 0; background: var(--color-mushaf-paper); }
+.mushaf-page-image { width: 100%; height: 100%; object-fit: contain; filter: brightness(1.1); border-radius: 0; background: var(--color-mushaf-paper); }
 .mushaf-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; text-align: center; color: var(--color-mushaf-muted); }
 .mushaf-index { position: absolute; inset-block: 0; right: 0; z-index: 10; width: min(300px, 100%); display: flex; flex-direction: column; background: var(--color-mushaf-paper); border-left: 1px solid var(--color-mushaf-border); box-shadow: var(--shadow-mushaf); }
 .mushaf-search { display: flex; align-items: center; gap: 8px; padding: 12px; border-bottom: 1px solid var(--color-mushaf-border); }

@@ -69,16 +69,23 @@ function Board() {
     ctx.strokeStyle = token(dark ? "board-line-dark" : "board-line"); ctx.lineWidth = 1;
     const spacing = 36 * zoom;
     for (let y = ((pan.y % spacing) + spacing) % spacing; y < h; y += spacing) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-    const layer = document.createElement("canvas"); layer.width = canvas.width; layer.height = canvas.height;
-    const c = layer.getContext("2d"); if (!c) return;
+    // Layer separation: mushaf/page images live on a bottom layer that is never erased;
+    // strokes and text live on a transparent top layer where the eraser uses destination-out.
+    const imageLayer = document.createElement("canvas"); imageLayer.width = canvas.width; imageLayer.height = canvas.height;
+    const drawLayer = document.createElement("canvas"); drawLayer.width = canvas.width; drawLayer.height = canvas.height;
+    const ic = imageLayer.getContext("2d"); const c = drawLayer.getContext("2d");
+    if (!ic || !c) return;
+    ic.scale(dpr, dpr); ic.translate(pan.x, pan.y); ic.scale(zoom, zoom);
     c.scale(dpr, dpr); c.translate(pan.x, pan.y); c.scale(zoom, zoom);
     for (const item of items.current) {
-      c.save();
       if (item.kind === "image") {
-        if (item.paper) { c.fillStyle = token("mushaf-paper"); c.fillRect(item.x, item.y, item.w, item.h); }
-        c.drawImage(item.image, item.x, item.y, item.w, item.h);
+        ic.save();
+        if (item.paper) { ic.fillStyle = token("mushaf-paper"); ic.fillRect(item.x, item.y, item.w, item.h); }
+        ic.drawImage(item.image, item.x, item.y, item.w, item.h);
+        ic.restore(); continue;
       }
-      else if (item.kind === "text") { c.fillStyle = token(item.color); c.font = `${item.size}px Cairo, sans-serif`; c.textAlign = "right"; c.fillText(item.text, item.x, item.y); }
+      c.save();
+      if (item.kind === "text") { c.fillStyle = token(item.color); c.font = `${item.size}px Cairo, sans-serif`; c.textAlign = "right"; c.fillText(item.text, item.x, item.y); }
       else {
         const first = item.points[0]; if (!first) { c.restore(); continue; }
         c.globalCompositeOperation = item.tool === "eraser" ? "destination-out" : "source-over";
@@ -91,7 +98,8 @@ function Board() {
       }
       c.restore();
     }
-    ctx.drawImage(layer, 0, 0, w, h);
+    ctx.drawImage(imageLayer, 0, 0, w, h);
+    ctx.drawImage(drawLayer, 0, 0, w, h);
   }, [dark, zoom, pan]);
   useEffect(() => { render(); window.addEventListener("resize", render); return () => window.removeEventListener("resize", render); }, [render, tick]);
   useEffect(() => { if (videoRef.current && streamRef.current) videoRef.current.srcObject = streamRef.current; }, [camOn]);

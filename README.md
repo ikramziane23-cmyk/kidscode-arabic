@@ -1,14 +1,34 @@
-# Welcome to your Lovable project
+# Kidscode Arabic
+
+أريد إنشاء واجهة رئيسية لمنصة تعليمية للأطفال باسم (Ikram Kids) بتصميم مبهج وعصري مطابق للتالي:
+
+
+​الهيدر العلوي:
+
+
+​شعار ملون ومرح مكتوب فيه بخط مبهج: Ikram Kids.
+
+​زر قائمة جانبي، زر تنبيهات، وقائمة لتغيير اللغة (العربية).
+
+
+​قسم الترحيب الرئيسي:
+
+
+​كبسولتان ملونتان (Badges) في الأعلى: الأولى بنفسجية مكتوب فيها (#1 منصة تعليمية شاملة)، والثانية خضراء مكتوب فيها (آمنة وبدون إعلانات).
+
+​عنوان رئيسي بارز بخط عربي جميل: "علّم طفلك اللغة العربية والقرآن بطريقة ممتعة!"
+
+​نص توضيحي: "منصة تعليمية تفاعلية شاملة تجمع بين تعلم اللغة العربية وتحفيظ القرآن الكريم للأطفال. الحروف والمفردات والقراءة والكتابة... كلها ألعاب ممتعة تجعل التعلم فرحة يومية
 
 This project was built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/91761b2e-e717-5cde-9639-7db3d0109dbb).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +40,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS

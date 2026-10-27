@@ -1,5 +1,5 @@
 // Surah index for the Warsh mushaf viewer: [name, page] — standard 604-page pagination.
-export const SURAHS: Array<{ n: number; name: string; page: number }> = [
+const ALL_SURAHS: Array<{ n: number; name: string; page: number }> = [
   { n: 1, name: "الفاتحة", page: 1 }, { n: 2, name: "البقرة", page: 2 }, { n: 3, name: "آل عمران", page: 50 },
   { n: 4, name: "النساء", page: 77 }, { n: 5, name: "المائدة", page: 106 }, { n: 6, name: "الأنعام", page: 128 },
   { n: 7, name: "الأعراف", page: 151 }, { n: 8, name: "الأنفال", page: 177 }, { n: 9, name: "التوبة", page: 187 },
@@ -40,7 +40,9 @@ export const SURAHS: Array<{ n: number; name: string; page: number }> = [
   { n: 112, name: "الإخلاص", page: 604 }, { n: 113, name: "الفلق", page: 604 }, { n: 114, name: "الناس", page: 604 },
 ];
 
-export const TOTAL_PAGES = 604;
+// Only the colored Warsh tajweed pages uploaded so far (1–147) are available.
+export const TOTAL_PAGES = 147;
+export const SURAHS = ALL_SURAHS.filter(s => s.page <= TOTAL_PAGES);
 
 export function surahForPage(page: number) {
   let current = SURAHS[0]!;
@@ -51,7 +53,7 @@ export function surahForPage(page: number) {
   return current;
 }
 
-// Real scanned Warsh mushaf pages served locally from /public/mushaf/warsh (1.jpg–604.jpg).
+// Colored Warsh tajweed pages served from /public/mushaf/warsh (1.jpg = Al-Fatiha).
 export function mushafPageUrl(page: number) {
   return `/mushaf/warsh/${page}.jpg`;
 }

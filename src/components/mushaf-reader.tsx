@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ChevronLeft, ChevronRight, Menu, Search, X, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SURAHS, TOTAL_PAGES, surahForPage, mushafPageUrl } from "@/lib/mushaf-data";
+import { SURAHS, TOTAL_PAGES, surahForPage, mushafPageUrl, availablePage, adjacentPage } from "@/lib/mushaf-data";
 
 export function MushafReader({ open, onOpenChange, onInsert }: {
   open: boolean;
@@ -19,7 +19,7 @@ export function MushafReader({ open, onOpenChange, onInsert }: {
   const [retry, setRetry] = useState(0);
   const goTo = (value: number) => {
     if (!Number.isFinite(value)) return;
-    const next = Math.min(TOTAL_PAGES, Math.max(1, Math.trunc(value)));
+    const next = availablePage(value);
     if (next !== page) { setLoadedPage(null); setFailedPage(null); }
     setPage(next); setPageInput(String(next));
   };
@@ -50,9 +50,9 @@ export function MushafReader({ open, onOpenChange, onInsert }: {
             <Button variant="ghost" type="submit" className="mushaf-go">اذهب</Button>
           </form>
           <div className="mushaf-navigation">
-            <Button variant="ghost" className="mushaf-icon" aria-label="الصفحة السابقة" title="الصفحة السابقة" disabled={page === 1} onClick={() => goTo(page - 1)}><ChevronRight /></Button>
+            <Button variant="ghost" className="mushaf-icon" aria-label="الصفحة السابقة" title="الصفحة السابقة" disabled={page === 1} onClick={() => goTo(adjacentPage(page, -1))}><ChevronRight /></Button>
             <span aria-live="polite" className="mushaf-count">{page} / {TOTAL_PAGES}</span>
-            <Button variant="ghost" className="mushaf-icon" aria-label="الصفحة التالية" title="الصفحة التالية" disabled={page === TOTAL_PAGES} onClick={() => goTo(page + 1)}><ChevronLeft /></Button>
+            <Button variant="ghost" className="mushaf-icon" aria-label="الصفحة التالية" title="الصفحة التالية" disabled={page === TOTAL_PAGES} onClick={() => goTo(adjacentPage(page, 1))}><ChevronLeft /></Button>
           </div>
         </div>
         <div className="mushaf-body">

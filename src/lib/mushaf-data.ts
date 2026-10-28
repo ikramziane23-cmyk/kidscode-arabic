@@ -40,13 +40,32 @@ const ALL_SURAHS: Array<{ n: number; name: string; page: number }> = [
   { n: 112, name: "الإخلاص", page: 604 }, { n: 113, name: "الفلق", page: 604 }, { n: 114, name: "الناس", page: 604 },
 ];
 
-// Only the colored Warsh tajweed pages uploaded so far (1–147) are available.
-export const TOTAL_PAGES = 147;
-export const SURAHS = ALL_SURAHS.filter(s => s.page <= TOTAL_PAGES);
+// Original scans are named by the page number printed inside the image.
+// Keep gaps explicit: never show a missing scan or renumber Quran pages.
+export const AVAILABLE_PAGES = [
+  ...Array.from({ length: 207 }, (_, index) => index + 1),
+  210, 213, 214, 217, 218, 220, 221, 224, 225, 228, 229, 230,
+  232, 233, 234, 235, 236, 237, 238, 243, 244, 245, 247, 248,
+  251, 252, 253, 255, 257, 261, 262, 263, 266, 267, 268, 269,
+  270, 271, 272, 274, 276, 278, 282, 283, 284, 285, 287, 289,
+  290, 291, 292, 293, 294, 295, 296, 298, 299, 301, 302, 303, 307,
+];
+export const TOTAL_PAGES = AVAILABLE_PAGES.at(-1) ?? 1;
+export const SURAHS = ALL_SURAHS.filter(s => AVAILABLE_PAGES.includes(s.page));
+
+export function availablePage(value: number) {
+  const requested = Math.min(TOTAL_PAGES, Math.max(1, Math.trunc(value)));
+  return AVAILABLE_PAGES.find(page => page >= requested) ?? TOTAL_PAGES;
+}
+
+export function adjacentPage(page: number, direction: -1 | 1) {
+  const index = AVAILABLE_PAGES.indexOf(page);
+  return AVAILABLE_PAGES[index + direction] ?? page;
+}
 
 export function surahForPage(page: number) {
-  let current = SURAHS[0]!;
-  for (const s of SURAHS) {
+  let current = ALL_SURAHS[0];
+  for (const s of ALL_SURAHS) {
     if (s.page <= page) current = s;
     else break;
   }

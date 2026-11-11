@@ -1,0 +1,105 @@
+diff --git a/src/routeTree.gen.ts b/src/routeTree.gen.ts
+index ea5cbd0..7d392dc 100644
+--- a/src/routeTree.gen.ts
++++ b/src/routeTree.gen.ts
+@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
+ import { Route as IndexRouteImport } from './routes/index'
+ import { Route as BoardRouteImport } from './routes/board'
+ import { Route as GamesRouteImport } from './routes/games'
++import { Route as AyahGameRouteImport } from './routes/ayah-game'
+ 
+ const IndexRoute = IndexRouteImport.update({
+   id: '/',
+@@ -28,33 +29,42 @@ const GamesRoute = GamesRouteImport.update({
+   path: '/games',
+   getParentRoute: () => rootRouteImport,
+ } as any)
++const AyahGameRoute = AyahGameRouteImport.update({
++  id: '/ayah-game',
++  path: '/ayah-game',
++  getParentRoute: () => rootRouteImport,
++} as any)
+ 
+ export interface FileRoutesByFullPath {
+   '/': typeof IndexRoute
++  '/ayah-game': typeof AyahGameRoute
+   '/board': typeof BoardRoute
+   '/games': typeof GamesRoute
+ }
+ export interface FileRoutesByTo {
+   '/': typeof IndexRoute
++  '/ayah-game': typeof AyahGameRoute
+   '/board': typeof BoardRoute
+   '/games': typeof GamesRoute
+ }
+ export interface FileRoutesById {
+   __root__: typeof rootRouteImport
+   '/': typeof IndexRoute
++  '/ayah-game': typeof AyahGameRoute
+   '/board': typeof BoardRoute
+   '/games': typeof GamesRoute
+ }
+ export interface FileRouteTypes {
+   fileRoutesByFullPath: FileRoutesByFullPath
+-  fullPaths: '/' | '/board' | '/games'
++  fullPaths: '/' | '/ayah-game' | '/board' | '/games'
+   fileRoutesByTo: FileRoutesByTo
+-  to: '/' | '/board' | '/games'
+-  id: '__root__' | '/' | '/board' | '/games'
++  to: '/' | '/ayah-game' | '/board' | '/games'
++  id: '__root__' | '/' | '/ayah-game' | '/board' | '/games'
+   fileRoutesById: FileRoutesById
+ }
+ export interface RootRouteChildren {
+   IndexRoute: typeof IndexRoute
++  AyahGameRoute: typeof AyahGameRoute
+   BoardRoute: typeof BoardRoute
+   GamesRoute: typeof GamesRoute
+ }
+@@ -68,6 +78,13 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof IndexRouteImport
+       parentRoute: typeof rootRouteImport
+     }
++    '/ayah-game': {
++      id: '/ayah-game'
++      path: '/ayah-game'
++      fullPath: '/ayah-game'
++      preLoaderRoute: typeof AyahGameRouteImport
++      parentRoute: typeof rootRouteImport
++    }
+     '/board': {
+       id: '/board'
+       path: '/board'
+@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
+ 
+ const rootRouteChildren: RootRouteChildren = {
+   IndexRoute: IndexRoute,
++  AyahGameRoute: AyahGameRoute,
+   BoardRoute: BoardRoute,
+   GamesRoute: GamesRoute,
+ }
+diff --git a/src/routes/index.tsx b/src/routes/index.tsx
+index d3d29ef..c8e2b67 100644
+--- a/src/routes/index.tsx
++++ b/src/routes/index.tsx
+@@ -29,6 +29,7 @@ const menuItems = [
+   { icon: Home, label: "الرئيسية", to: "/" as const, color: "text-kid-blue" },
+   { icon: Palette, label: "سبورة إكرام", to: "/board" as const, color: "text-kid-purple" },
+   { icon: Gamepad2, label: "ألعاب الحروف", to: "/games" as const, color: "text-kid-orange" },
++  { icon: BookOpen, label: "أكمل الآية", to: "/ayah-game" as const, color: "text-kid-green" },
+   { icon: BookOpen, label: "قصصي", to: "/" as const, color: "text-kid-green" },
+   { icon: Star, label: "نجومي وجوائزي", to: "/" as const, color: "text-kid-yellow" },
+   { icon: Settings, label: "الإعدادات", to: "/" as const, color: "text-muted-foreground" },
+@@ -195,6 +196,12 @@ function Index() {
+             >
+               <Gamepad2 className="h-5 w-5" /> ألعاب الحروف القرآنية
+             </Link>
++            <Link
++              to="/ayah-game"
++              className="flex items-center gap-2 rounded-full bg-kid-green px-6 py-3 font-display text-lg font-bold text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
++            >
++              <BookOpen className="h-5 w-5" /> أكمل الآية
++            </Link>
+           </div>
+         </section>
+         <div className="relative">
